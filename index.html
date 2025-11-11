@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Planificación de Capacitaciones</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+        /* Estilo para la tabla de planificación */
+        .plan-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .plan-table th, .plan-table td {
+            border: 1px solid #d1d5db;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .plan-table th {
+            background-color: #e5e7eb;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: #374151;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Oculta los elementos de control en la vista de impresión/PDF */
+        @media print {
+            #input-section, #pdf-instructions { /* Oculta la sección de entrada y las instrucciones de PDF */
+                display: none;
+            }
+            body {
+                background-color: white; /* Fondo blanco para ahorrar tinta */
+                padding: 0;
+            }
+            .max-w-6xl {
+                max-width: none !important;
+                box-shadow: none !important;
+            }
+            /* Asegura que el logo se muestre en la impresión si está cargado */
+            #output-logo:not(.hidden) {
+                display: block !important; 
+            }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-6xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-2xl">
+        
+        <!-- CABECERA PRINCIPAL CON LOGOTIPO -->
+        <div class="flex items-start justify-between mb-6 border-b-4 border-blue-200 pb-2">
+            <!-- Logotipo cargado dinámicamente (Se mantiene la estructura HTML) -->
+            <img id="output-logo" class="h-16 w-auto object-contain max-w-xs pr-4 hidden" alt="Logotipo de la empresa">
+
+            <!-- Título principal -->
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-blue-700 text-right flex-grow">
+                PLANIFICACIÓN DE CAPACITACIONES
+            </h1>
+        </div>
+        
+        <!-- Sección de Entrada de Datos -->
+        <div id="input-section" class="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg shadow-inner">
+            <h2 class="text-xl font-semibold mb-4 text-blue-800">1. Define los Parámetros del Programa</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="md:col-span-2">
+                    <label for="tema-generador" class="block text-sm font-medium text-gray-700 mb-1">Tema Generador de la Capacitación</label>
+                    <input type="text" id="tema-generador" placeholder="Ej: Liderazgo Transformacional y Gestión del Cambio" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="select-sesiones" class="block text-sm font-medium text-gray-700 mb-1">Número de Sesiones</label>
+                    <select id="select-sesiones" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
+                        <option value="1 Sesión">1 Sesión</option>
+                        <option value="2 Sesiones">2 Sesiones</option>
+                        <option value="3 Sesiones" selected>3 Sesiones</option>
+                        <option value="4 Sesiones">4 Sesiones</option>
+                        <option value="5 Sesiones">5 Sesiones</option>
+                        <option value="6 Sesiones">6 Sesiones</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="select-horas" class="block text-sm font-medium text-gray-700 mb-1">Duración por Sesión</label>
+                    <select id="select-horas" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
+                        <option value="30 minutos">30 minutos</option>
+                        <option value="45 minutos">45 minutos</option>
+                        <option value="1 hora">1 hora</option>
+                        <option value="1.5 horas">1.5 horas</option>
+                        <option value="2 horas" selected>2 horas</option>
+                        <option value="3 horas">3 horas</option>
+                        <option value="4 horas">4 horas</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Botones Generar y Instrucción de PDF (Reemplazo del botón no funcional) -->
+            <div class="mt-6 flex flex-col sm:flex-row gap-4">
+                <button id="generar-btn" onclick="generatePlan()" class="w-full sm:w-1/2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition duration-300 shadow-md flex items-center justify-center disabled:bg-blue-400">
+                    <span id="button-text">Generar Planificación</span>
+                    <div id="loading-spinner" class="loader hidden ml-3"></div>
+                </button>
+                
+                <!-- Instrucción nativa para guardar PDF -->
+                <div id="pdf-instructions" class="w-full sm:w-1/2 p-3 bg-green-100 border-2 border-green-500 rounded-lg shadow-md hidden flex flex-col justify-center">
+                    <p class="font-bold text-green-800 text-center text-sm">✅ PLAN GENERADO. PARA GUARDAR COMO PDF:</p>
+                    <p class="text-xs text-green-700 text-center">Usa la función de impresión de tu navegador (**Ctrl+P** o **Cmd+P**), y selecciona **'Guardar como PDF'** como destino.</p>
+                </div>
+            </div>
+
+            <div id="error-message" class="mt-4 text-red-600 font-medium hidden"></div>
+        </div>
+
+        <!-- Sección de Resultado de la Planificación -->
+        <div id="plan-output" class="hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Plan de Capacitación Generado</h2>
+            
+            <!-- Título y Datos Generales -->
+            <div class="border border-gray-300 rounded-lg p-4 mb-6">
+                <p class="text-sm text-gray-600 mb-1">Título:</p>
+                <h3 id="output-titulo" class="text-xl font-semibold text-gray-900 mb-4"></h3>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <p class="font-bold text-gray-700">Objetivo:</p>
+                        <p id="output-objetivo" class="text-gray-600"></p>
+                    </div>
+                    <div>
+                        <p class="font-bold text-gray-700">Conocimientos Esenciales:</p>
+                        <ul id="output-conocimientos" class="list-disc list-inside text-gray-600"></ul>
+                    </div>
+                    <div>
+                        <p class="font-bold text-gray-700">Competencias a Desarrollar:</p>
+                        <ul id="output-competencias" class="list-disc list-inside text-gray-600"></ul>
+                    </div>
+                    <div>
+                        <p class="font-bold text-gray-700">Indicadores de Éxito:</p>
+                        <ul id="output-indicadores" class="list-disc list-inside text-gray-600"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Secuencia Didáctica -->
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="plan-table">
+                    <thead>
+                        <tr>
+                            <th class="w-12">Nro.</th>
+                            <th class="w-24">Tiempo</th>
+                            <th class="w-32">Área / Módulo</th>
+                            <th class="w-24">Fase</th>
+                            <th>Descripción de la Actividad</th>
+                            <th class="w-48">Recursos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="output-sesiones">
+                        <!-- Las filas se insertarán aquí por JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Sección de Reflexiones (Modelo del documento original) -->
+            <div class="mt-8 p-4 bg-gray-100 border border-gray-300 rounded-lg">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">REFLEXIONES SOBRE LOS APRENDIZAJES EN LA FORMACIÓN (Para Completar Post-Capacitación)</h3>
+                <p class="text-sm text-gray-600">¿Qué avances y dificultades tuvieron los trabajadores?: _________________________________</p>
+                <p class="text-sm text-gray-600">¿Qué aprendizajes debo reforzar para la siguiente unidad?: ______________________________</p>
+                <p class="text-sm text-gray-600">¿Qué actividades y estrategias funcionaron y cuáles no?: _______________________________</p>
+                <p class="text-sm text-gray-600">Otras Observaciones: ___________________________________________________________</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Función auxiliar para generar un ID aleatorio (solo si __app_id no está disponible)
+        const getAppId = () => typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- Configuración de la API y el Sistema ---
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
+        const API_KEY = ""; // La clave se proporciona automáticamente en el entorno
+        const app_id = getAppId();
+
+        // Se han eliminado las variables y funciones relacionadas con la carga del logo.
+        
+        const planOutput = document.getElementById('plan-output');
+        const generarBtn = document.getElementById('generar-btn');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const errorMessage = document.getElementById('error-message');
+        const pdfInstructions = document.getElementById('pdf-instructions'); // Nueva variable para las instrucciones
+        
+        // --- Funciones de Utilidad ---
+
+        /** Muestra/oculta el estado de carga y habilita las instrucciones PDF al finalizar */
+        function setLoading(isLoading) {
+            generarBtn.disabled = isLoading;
+            buttonText.textContent = isLoading ? 'Generando...' : 'Generar Planificación';
+            loadingSpinner.classList.toggle('hidden', !isLoading);
+            errorMessage.classList.add('hidden');
+            
+            // Si termina de cargar y la salida no está oculta, muestra las instrucciones de PDF
+            if (!isLoading && !planOutput.classList.contains('hidden')) {
+                pdfInstructions.classList.remove('hidden');
+            } else if (isLoading) {
+                planOutput.classList.add('hidden');
+                pdfInstructions.classList.add('hidden');
+            }
+        }
+
+        /** Renderiza una lista de strings a un HTML <ul> */
+        function renderList(elementId, items) {
+            const ul = document.getElementById(elementId);
+            ul.innerHTML = '';
+            if (items && items.length > 0) {
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    ul.appendChild(li);
+                });
+            } else {
+                ul.innerHTML = '<li>N/A</li>';
+            }
+        }
+        
+        /** Genera el texto combinado de sesiones y horas para el LLM */
+        function getSesionFormat() {
+            const selectSesiones = document.getElementById('select-sesiones').value;
+            const selectHoras = document.getElementById('select-horas').value;
+            
+            // Ejemplo de salida: "3 Sesiones de 2 horas c/u"
+            return `${selectSesiones} de ${selectHoras} c/u`;
+        }
+
+        /** Define el esquema JSON para la respuesta del LLM */
+        const RESPONSE_SCHEMA = {
+            type: "OBJECT",
+            properties: {
+                titulo: { type: "STRING", description: "Título completo y formal del programa de capacitación." },
+                objetivo: { type: "STRING", description: "Objetivo general de la capacitación, claro y medible." },
+                conocimientos_esenciales: { 
+                    type: "ARRAY", 
+                    description: "Lista de 3 a 5 conceptos clave que los participantes deben conocer.",
+                    items: { type: "STRING" } 
+                },
+                competencias: { 
+                    type: "ARRAY", 
+                    description: "Lista de 3 a 5 competencias de liderazgo y gestión a desarrollar (ej. Comunicación Asertiva, Toma de Decisiones Estratégicas).",
+                    items: { type: "STRING" } 
+                },
+                indicadores: { 
+                    type: "ARRAY", 
+                    description: "Lista de 3 a 5 indicadores de éxito del programa (KPIs), alineados a las competencias (ej. Tasa de Retención de Empleados, Puntuación 360°).",
+                    items: { type: "STRING" } 
+                },
+                sesiones: {
+                    type: "ARRAY",
+                    description: "Detalle de cada sesión didáctica, con la secuencia INICIO-DESARROLLO-CIERRE.",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            nro: { type: "INTEGER" },
+                            tiempo_estimado: { type: "STRING", description: "Duración de esta sesión específica (Ej: 2 horas)." },
+                            area: { type: "STRING", description: "Módulo o área temática de la sesión (Ej: Fundamentos del Liderazgo)." },
+                            inicio: { type: "STRING", description: "Actividades de inicio: motivación, revisión, y presentación del tema (1-2 frases)." },
+                            desarrollo: { type: "STRING", description: "Actividades de desarrollo: contenido principal, dinámicas, ejercicios prácticos (2-3 frases)." },
+                            cierre: { type: "STRING", description: "Actividades de cierre: conclusiones, Q&A, resumen de aprendizaje (1-2 frases)." },
+                            recursos: { type: "ARRAY", items: { type: "STRING" }, description: "Lista de recursos necesarios (Ej: Presentación PPT, Estudio de Caso X, Pizarra, Proyector)." }
+                        },
+                        required: ["nro", "tiempo_estimado", "area", "inicio", "desarrollo", "cierre", "recursos"]
+                    }
+                }
+            },
+            required: ["titulo", "objetivo", "conocimientos_esenciales", "competencias", "indicadores", "sesiones"]
+        };
+
+
+        /**
+         * Llama a la API de Gemini para generar el plan de capacitación.
+         */
+        async function fetchPlanContent(tema, sesiones) {
+            // El prompt del sistema se mantiene igual para garantizar la calidad y formato del JSON.
+            const systemPrompt = `Eres un experto en diseño instruccional y desarrollo organizacional. Tu tarea es generar la planificación detallada de una capacitación de liderazgo basada en el tema generador y la duración proporcionados por el usuario. La respuesta debe ser un objeto JSON que siga el esquema exacto proporcionado. Asegúrate de que el Objetivo sea SMART y que los Indicadores sean KPIs de liderazgo relevantes. Si el usuario indica varias sesiones, distribuye el contenido lógicamente entre ellas.`;
+            
+            const userQuery = `Genera un plan de capacitación de liderazgo. Tema Generador: "${tema}". Duración/Formato solicitado: "${sesiones}".`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: RESPONSE_SCHEMA
+                }
+            };
+
+            const maxRetries = 3;
+            let delay = 1000;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(API_URL + API_KEY, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const jsonString = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (jsonString) {
+                        const parsedJson = JSON.parse(jsonString);
+                        return parsedJson;
+                    } else {
+                        throw new Error("Respuesta de la API vacía o sin formato JSON.");
+                    }
+                } catch (error) {
+                    console.error("Error al llamar a la API (Intento " + (i + 1) + "):", error);
+                    if (i < maxRetries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; // Exponential backoff
+                    } else {
+                        throw new Error("No se pudo generar el contenido. Por favor, inténtalo de nuevo.");
+                    }
+                }
+            }
+        }
+
+        /**
+         * Dibuja la tabla de Secuencia Didáctica con los datos generados.
+         */
+        function renderSecuencias(sesiones) {
+            const tbody = document.getElementById('output-sesiones');
+            tbody.innerHTML = '';
+            
+            if (!sesiones || sesiones.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-500">No se generaron sesiones didácticas.</td></tr>';
+                return;
+            }
+
+            sesiones.forEach(sesion => {
+                // Fila INICIO
+                let row = `
+                    <tr>
+                        <td rowspan="3" class="font-bold bg-gray-50">${sesion.nro}</td>
+                        <td rowspan="3" class="bg-gray-50">${sesion.tiempo_estimado}</td>
+                        <td rowspan="3" class="bg-gray-50 font-medium">${sesion.area}</td>
+                        <td class="font-bold text-blue-600">INICIO</td>
+                        <td>${sesion.inicio}</td>
+                        <td rowspan="3">
+                            <ul class="list-disc list-inside text-xs">
+                                ${sesion.recursos.map(r => `<li>${r}</li>`).join('')}
+                            </ul>
+                        </td>
+                    </tr>`;
+                
+                // Fila DESARROLLO
+                row += `
+                    <tr>
+                        <td class="font-bold text-green-600">DESARROLLO</td>
+                        <td>${sesion.desarrollo}</td>
+                    </tr>`;
+                
+                // Fila CIERRE
+                row += `
+                    <tr>
+                        <td class="font-bold text-red-600">CIERRE</td>
+                        <td>${sesion.cierre}</td>
+                    </tr>`;
+
+                tbody.innerHTML += row;
+            });
+        }
+
+
+        /**
+         * Función principal para generar el plan.
+         */
+        async function generatePlan() {
+            const tema = document.getElementById('tema-generador').value.trim();
+            const sesiones = getSesionFormat(); // Obtiene el texto combinado
+            
+            if (!tema) {
+                errorMessage.textContent = 'Por favor, introduce el Tema Generador.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const planData = await fetchPlanContent(tema, sesiones);
+                
+                // 1. Rellenar Datos Generales
+                document.getElementById('output-titulo').textContent = planData.titulo || tema;
+                document.getElementById('output-objetivo').textContent = planData.objetivo || 'N/A';
+                
+                renderList('output-conocimientos', planData.conocimientos_esenciales);
+                renderList('output-competencias', planData.competencias);
+                renderList('output-indicadores', planData.indicadores);
+
+                // 2. Rellenar Secuencia Didáctica
+                renderSecuencias(planData.sesiones);
+
+                // 3. Mostrar el resultado y habilitar el PDF
+                planOutput.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error("Error general en la generación:", error);
+                errorMessage.textContent = error.message || 'Ocurrió un error inesperado al generar el plan. Verifica los inputs.';
+                errorMessage.classList.remove('hidden');
+            } finally {
+                setLoading(false);
+            }
+        }
+        
+        // La función saveAsPDF() ha sido eliminada y reemplazada por las instrucciones HTML.
+
+    </script>
+</body>
+</html>
